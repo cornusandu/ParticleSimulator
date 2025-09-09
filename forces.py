@@ -1,13 +1,18 @@
 from utils import force
 import numpy as np
+import numba
+import numba.cuda
 
 point = np.dtype([
-    ('x', np.float16),
-    ('y', np.float16),
-    ('mass', np.int32)
+    ('x', np.float64),
+    ('y', np.float64),
+    ('mass', np.int32),
+    ('vx', np.float64),
+    ('vy', np.float64)
 ])
 
 @force
+@numba.njit()
 def gravpull(point1: point, point2: point): # type: ignore
     """Gravitational pull between two points."""
     dx = point1['x'] - point2['x']
@@ -15,15 +20,20 @@ def gravpull(point1: point, point2: point): # type: ignore
     distance_squared = dx**2 + dy**2
     if distance_squared == 0:
         return 0.0
-    force = (point1['mass'] * point2['mass']) / distance_squared
+    ds = np.pow(np.sqrt(distance_squared), 0.8)
+    force = (point1['mass'] * point2['mass']) / (ds + 0.001)
     return force
 
-@force
+@numba.njit()
 def closepush(point1: point, point2: point): # type: ignore
     """Repulsive force between two points when they are too close."""
     dx = point1['x'] - point2['x']
     dy = point1['y'] - point2['y']
     distance_squared = dx**2 + dy**2
     distance = np.sqrt(distance_squared)
-    if distance >= 5: return 0.00
-    return (5 - distance) ** 1.7 * -1
+    if distance >= 1: return 0.00
+    return np.sqrt(1 / np.where(np.abs(distance) == 0, 0.000001, np.abs(distance))) / 40
+
+@numba.njit()
+def randomf(p1: point, p2: point):
+    return np.random.uniform(-1, 1) * p1['mass'] * p2['mass']
